@@ -1,4 +1,4 @@
-# @TsStoreXx
+# @TsStoreX
 
 A modern, type-safe state management library with RxJS core and Signal projections for optimal performance across all environments.
 
@@ -15,6 +15,6 @@ A modern, type-safe state management library with RxJS core and Signal projectio
 ## 📦 Installation
 
 ```bash
-npm install @TsStoreXx rxjs immer
+npm install @TsStoreX rxjs immer
 # Optional: for Signal projections
 npm install solid-js

@@ -1,5 +1,5 @@
 {
-    "name": "TsStoreX",
+    "name": "tsstorex",
     "version": "0.0.1",
     "description": "A modern state management library with RxJS core and Signal projections",
     "keywords": [
@@ -11,15 +11,15 @@
       "reactive",
       "ngrx-like"
     ],
-    "author": "Your Name <your.email@example.com>",
+    "author": "Joneshong <latte831104@gmail.com>",
     "license": "MIT",
-    "homepage": "https://github.com/TsStoreX#readme",
+    "homepage": "https://github.com/JonesHong/TsStoreX#readme",
     "repository": {
       "type": "git",
-      "url": "git+https://github.com/TsStoreX.git"
+      "url": "git+https://github.com/JonesHong/TsStoreX.git"
     },
     "bugs": {
-      "url": "https://github.com/TsStoreX/issues"
+      "url": "https://github.com/JonesHong/TsStoreX/issues"
     },
     "main": "dist/index.js",
     "module": "dist/index.mjs",

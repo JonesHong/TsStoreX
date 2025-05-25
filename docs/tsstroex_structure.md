@@ -99,7 +99,7 @@ TsStoreX/
 
 ```json
 {
-  "name": "@TsStoreXx",
+  "name": "@TsStoreX",
   "version": "0.0.1",
   "description": "A modern state management library with RxJS core and Signal projections",
   "keywords": [
@@ -113,13 +113,13 @@ TsStoreX/
   ],
   "author": "Your Name <your.email@example.com>",
   "license": "MIT",
-  "homepage": "https://github.com/TsStoreXx#readme",
+  "homepage": "https://github.com/TsStoreX#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/TsStoreXx.git"
+    "url": "git+https://github.com/TsStoreX.git"
   },
   "bugs": {
-    "url": "https://github.com/TsStoreXx/issues"
+    "url": "https://github.com/TsStoreX/issues"
   },
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -527,7 +527,7 @@ export {
 ## 📄 README.md
 
 ```markdown
-# @TsStoreXx
+# @TsStoreX
 
 A modern, type-safe state management library with RxJS core and Signal projections for optimal performance across all environments.
 
@@ -544,7 +544,7 @@ A modern, type-safe state management library with RxJS core and Signal projectio
 ## 📦 Installation
 
 ```bash
-npm install @TsStoreXx rxjs immer
+npm install @TsStoreX rxjs immer
 # Optional: for Signal projections
 npm install solid-js
 ```
@@ -552,7 +552,7 @@ npm install solid-js
 ## 🚀 Quick Start
 
 ```typescript
-import { Store, createAction, createReducer, on } from '@TsStoreXx';
+import { Store, createAction, createReducer, on } from '@TsStoreX';
 
 // Define actions
 const increment = createAction('increment');
