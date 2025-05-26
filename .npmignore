@@ -1,30 +1,98 @@
-# Source code
+# Source code (不發布源碼)
 src/
 tests/
 examples/
 docs/
 tools/
+benchmark/
 
-# Config files
+# Configuration files
 tsconfig*.json
 rollup.config.js
 jest.config.js
 .eslintrc*
 .prettierrc*
+babel.config.js
+vite.config.js
 
-# Development
+# Development files
 .vscode/
 .idea/
 *.log
 coverage/
 .nyc_output/
+test-results/
+junit.xml
 
-# CI/CD
+# CI/CD files
 .github/
 .gitlab-ci.yml
 .travis.yml
+.circleci/
+azure-pipelines.yml
+.buildkite/
 
-# Others
-*.test.ts
-*.spec.ts
-*.map
+# Development dependencies
+node_modules/
+
+# Build artifacts that shouldn't be published
+*.tsbuildinfo
+.rollup.cache/
+bundle-analysis.html
+
+# Testing and quality assurance
+**/*.test.ts
+**/*.spec.ts
+**/*.test.js
+**/*.spec.js
+*.test.*
+*.spec.*
+__tests__/
+__mocks__/
+
+# Documentation development
+docs/.vitepress/
+*.md.backup
+
+# Development tools
+.eslintcache
+.stylelintcache
+
+# Environment files
+.env*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Lock files (讓使用者自己選擇包管理器)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Development scripts
+scripts/dev/
+scripts/test/
+
+# Performance and analysis
+flamegraph.html
+.clinic/
+
+# Storybook
+.storybook/
+storybook-static/
+
+# Local development
+.local/
+local/

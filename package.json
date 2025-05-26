@@ -3,111 +3,149 @@
     "version": "0.0.1",
     "description": "A modern state management library with RxJS core and Signal projections",
     "keywords": [
-      "state-management",
-      "rxjs",
-      "signals",
-      "solidjs",
-      "typescript",
-      "reactive",
-      "ngrx-like"
+        "state-management",
+        "rxjs",
+        "signals",
+        "solidjs",
+        "typescript",
+        "reactive",
+        "ngrx-like",
+        "entity-adapter",
+        "store",
+        "reducer",
+        "action",
+        "middleware",
+        "selectors",
+        "effects"
     ],
     "author": "Joneshong <latte831104@gmail.com>",
     "license": "MIT",
     "homepage": "https://github.com/JonesHong/TsStoreX#readme",
     "repository": {
-      "type": "git",
-      "url": "git+https://github.com/JonesHong/TsStoreX.git"
+        "type": "git",
+        "url": "git+https://github.com/JonesHong/TsStoreX.git"
     },
     "bugs": {
-      "url": "https://github.com/JonesHong/TsStoreX/issues"
+        "url": "https://github.com/JonesHong/TsStoreX/issues"
     },
     "main": "dist/index.js",
     "module": "dist/index.mjs",
     "types": "dist/index.d.ts",
     "exports": {
-      ".": {
-        "import": "./dist/index.mjs",
-        "require": "./dist/index.js",
-        "types": "./dist/index.d.ts"
-      },
-      "./core": {
-        "import": "./dist/core/index.mjs",
-        "require": "./dist/core/index.js",
-        "types": "./dist/core/index.d.ts"
-      },
-      "./signals": {
-        "import": "./dist/signals/index.mjs",
-        "require": "./dist/signals/index.js",
-        "types": "./dist/signals/index.d.ts"
-      },
-      "./entity": {
-        "import": "./dist/entity/index.mjs",
-        "require": "./dist/entity/index.js",
-        "types": "./dist/entity/index.d.ts"
-      },
-      "./effects": {
-        "import": "./dist/effects/index.mjs",
-        "require": "./dist/effects/index.js",
-        "types": "./dist/effects/index.d.ts"
-      },
-      "./middlewares": {
-        "import": "./dist/middlewares/index.mjs",
-        "require": "./dist/middlewares/index.js",
-        "types": "./dist/middlewares/index.d.ts"
-      }
+        ".": {
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        },
+        "./core": {
+            "import": "./dist/core/index.mjs",
+            "require": "./dist/core/index.js",
+            "types": "./dist/core/index.d.ts"
+        },
+        "./signals": {
+            "import": "./dist/signals/index.mjs",
+            "require": "./dist/signals/index.js",
+            "types": "./dist/signals/index.d.ts"
+        },
+        "./entity": {
+            "import": "./dist/entity/index.mjs",
+            "require": "./dist/entity/index.js",
+            "types": "./dist/entity/index.d.ts"
+        },
+        "./effects": {
+            "import": "./dist/effects/index.mjs",
+            "require": "./dist/effects/index.js",
+            "types": "./dist/effects/index.d.ts"
+        },
+        "./middlewares": {
+            "import": "./dist/middlewares/index.mjs",
+            "require": "./dist/middlewares/index.js",
+            "types": "./dist/middlewares/index.d.ts"
+        }
     },
     "files": [
-      "dist",
-      "README.md",
-      "LICENSE"
+        "dist",
+        "README.md",
+        "LICENSE",
+        "CHANGELOG.md"
     ],
     "sideEffects": false,
     "engines": {
-      "node": ">=16.0.0"
+        "node": ">=16.0.0",
+        "npm": ">=8.0.0"
     },
     "scripts": {
-      "build": "npm run clean && npm run build:types && npm run build:bundle",
-      "build:types": "tsc -p tsconfig.build.json",
-      "build:bundle": "rollup -c",
-      "clean": "rimraf dist",
-      "test": "jest",
-      "test:watch": "jest --watch",
-      "test:coverage": "jest --coverage",
-      "lint": "eslint src --ext .ts",
-      "lint:fix": "eslint src --ext .ts --fix",
-      "format": "prettier --write \"src/**/*.ts\"",
-      "prepublishOnly": "npm run test && npm run build",
-      "release": "node tools/release.js",
-      "docs:dev": "vitepress dev docs",
-      "docs:build": "vitepress build docs"
+        "build": "npm run clean && npm run build:types && npm run build:bundle",
+        "build:types": "tsc -p tsconfig.build.json",
+        "build:bundle": "rollup -c",
+        "build:watch": "rollup -c --watch",
+        "clean": "rimraf dist",
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "test:coverage": "jest --coverage",
+        "test:ci": "jest --ci --coverage --watchAll=false",
+        "lint": "eslint src --ext .ts",
+        "lint:fix": "eslint src --ext .ts --fix",
+        "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+        "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
+        "type-check": "tsc --noEmit",
+        "prepublishOnly": "npm run test:ci && npm run build",
+        "release": "node tools/release.js",
+        "docs:dev": "vitepress dev docs",
+        "docs:build": "vitepress build docs",
+        "size": "bundlesize",
+        "analyze": "npm run build && npx rollup-plugin-visualizer --open"
     },
     "peerDependencies": {
-      "rxjs": ">=7.0.0",
-      "immer": ">=9.0.0"
+        "immer": ">=10.1.0",
+        "rxjs": ">=7.8.0"
+    },
+    "peerDependenciesMeta": {
+        "solid-js": {
+            "optional": true
+        }
     },
     "optionalDependencies": {
-      "solid-js": ">=1.6.0"
+        "solid-js": ">=1.9.0"
     },
     "devDependencies": {
-      "@rollup/plugin-node-resolve": "^15.0.0",
-      "@rollup/plugin-typescript": "^11.0.0",
-      "@types/jest": "^29.0.0",
-      "@types/node": "^18.0.0",
-      "@typescript-eslint/eslint-plugin": "^6.0.0",
-      "@typescript-eslint/parser": "^6.0.0",
-      "eslint": "^8.0.0",
-      "eslint-config-prettier": "^8.0.0",
-      "eslint-plugin-prettier": "^5.0.0",
-      "immer": "^10.0.0",
-      "jest": "^29.0.0",
-      "prettier": "^3.0.0",
-      "rimraf": "^5.0.0",
-      "rollup": "^3.0.0",
-      "rollup-plugin-dts": "^6.0.0",
-      "rollup-plugin-terser": "^7.0.0",
-      "rxjs": "^7.8.0",
-      "solid-js": "^1.8.0",
-      "ts-jest": "^29.0.0",
-      "typescript": "^5.0.0"
-    }
-  }
+        "@rollup/plugin-node-resolve": "^15.2.3",
+        "@rollup/plugin-terser": "^0.4.4",
+        "@rollup/plugin-typescript": "^11.1.5",
+        "@types/jest": "^29.5.8",
+        "@types/node": "^20.9.2",
+        "@types/webworker": "^0.0.8",
+        "@typescript-eslint/eslint-plugin": "^6.12.0",
+        "@typescript-eslint/parser": "^6.12.0",
+        "bundlesize": "^0.18.1",
+        "eslint": "^8.54.0",
+        "eslint-config-prettier": "^9.0.0",
+        "eslint-plugin-prettier": "^5.0.1",
+        "immer": "^10.1.1",
+        "jest": "^29.7.0",
+        "jest-environment-jsdom": "^29.7.0",
+        "prettier": "^3.1.0",
+        "rimraf": "^5.0.5",
+        "rollup": "^4.5.0",
+        "rollup-plugin-dts": "^6.1.0",
+        "rollup-plugin-visualizer": "^5.9.2",
+        "rxjs": "^7.8.2",
+        "solid-js": "^1.9.7",
+        "ts-jest": "^29.1.1",
+        "typescript": "^5.2.2"
+    },
+    "bundlesize": [
+        {
+            "path": "./dist/index.mjs",
+            "maxSize": "15kb"
+        },
+        {
+            "path": "./dist/core/index.mjs",
+            "maxSize": "8kb"
+        },
+        {
+            "path": "./dist/signals/index.mjs",
+            "maxSize": "3kb"
+        }
+    ]
+}
