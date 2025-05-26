@@ -216,7 +216,7 @@ tools/
 # 配置檔案
 tsconfig*.json
 rollup.config.js
-jest.config.js
+jest.config.ts
 .eslintrc*
 .prettierrc*
 

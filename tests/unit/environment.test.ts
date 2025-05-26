@@ -23,7 +23,7 @@ import {
     Environment,
     type EnvironmentInfo,
     type EnvironmentCapabilities
-  } from '../environment';
+  } from '../../src/utils/environment';
   
   describe('環境檢測系統', () => {
     

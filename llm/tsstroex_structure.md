@@ -88,7 +88,7 @@ TsStoreX/
 ├── 📄 tsconfig.json                  # TypeScript 配置
 ├── 📄 tsconfig.build.json            # 構建專用 TS 配置
 ├── 📄 rollup.config.js               # Rollup 配置
-├── 📄 jest.config.js                 # Jest 測試配置
+├── 📄 jest.config.ts                 # Jest 測試配置
 ├── 📄 .gitignore                     # Git 忽略文件
 ├── 📄 .npmignore                     # NPM 忽略文件
 ├── 📄 LICENSE                        # 授權文件

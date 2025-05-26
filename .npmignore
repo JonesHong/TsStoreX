@@ -9,7 +9,7 @@ benchmark/
 # Configuration files
 tsconfig*.json
 rollup.config.js
-jest.config.js
+jest.config.ts
 .eslintrc*
 .prettierrc*
 babel.config.js
