@@ -16,6 +16,16 @@
 - **immer**: 不可變狀態更新，提供直觀的狀態修改語法
 - **solid-js**: 瀏覽器環境專用，提供 Signal 投影能力
 
+### 工具庫依賴
+- **luxon**: 現代化的日期時間處理庫，用於 Logger 系統的時間格式化
+  - 替代原生 Date，提供更一致和可靠的時間格式化
+  - 支援時區處理和多種格式化選項
+  - 在 Logger 系統中用於生成標準化的時間戳
+- **uuid**: UUID 生成庫，用於創建唯一標識符
+  - 使用 UUID v7（時間排序），確保 ID 的唯一性和排序性
+  - 主要用於 Action ID、Entity ID、實例 ID 等場景
+  - 相比 crypto.randomUUID()，提供更好的跨環境兼容性
+
 ## 核心型別系統
 
 ### 基礎型別定義
@@ -106,7 +116,8 @@ export const createLogger = (level: 'debug' | 'info' | 'warn' | 'error' = 'info'
   
   const log = (logLevel: string, message: string, ...args: any[]) => {
     if (levels[logLevel as keyof typeof levels] >= currentLevel) {
-      console[logLevel as keyof Console](`[${new Date().toISOString()}] ${logLevel.toUpperCase()}: ${message}`, ...args);
+      const timestamp = DateTime.now().toFormat('yyyy-MM-dd HH:mm:ss'); // 靈活格式化
+      console[logLevel as keyof Console](`[${timestamp}] ${logLevel.toUpperCase()}: ${message}`, ...args);
     }
   };
   
@@ -127,7 +138,7 @@ export const createAction = <T = void>(type: string): ActionCreator<T> => {
     type,
     ...(payload !== undefined && { payload }),
     timestamp: Date.now(),
-    id: crypto.randomUUID()
+    id: uuid.v7() // 使用 UUID v7 生成唯一 ID
   })) as ActionCreator<T>;
   
   actionCreator.type = type;

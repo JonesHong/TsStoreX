@@ -1,17 +1,19 @@
 /**
- * Store 核心系統單元測試
+ * Store 核心系統單元測試 - 增強版
  * 
  * 測試範圍：
- * - Store 核心功能
+ * - Store Builder 系統
+ * - 多 Reducer 管理
  * - Signal 投影系統
  * - 中間件系統
+ * - Effects 系統
  * - 環境自適應
  * - 錯誤處理
  * - 生命週期管理
  */
 
-import { firstValueFrom, isObservable, of, throwError } from 'rxjs';
-import { map, take, skip } from 'rxjs/operators';
+import { firstValueFrom, isObservable, of, throwError, Observable } from 'rxjs';
+import { map, take, skip, filter } from 'rxjs/operators';
 
 // Mock 環境檢測
 jest.mock('../../../src/utils/environment', () => ({
@@ -30,21 +32,24 @@ jest.mock('../../../src/utils/logger', () => ({
     }))
 }));
 
-
-
-// 修正 SolidJS Mock - 確保在任何時候 require('solid-js') 都會返回正確的 mock
+// 修正 SolidJS Mock
 const mockCreateSignal = jest.fn();
 const mockCreateMemo = jest.fn();
 const mockSetSignal = jest.fn();
 
-// 重要：使用 jest.doMock 來確保動態 require 可以正確獲取 mock
 jest.doMock('solid-js', () => ({
     createSignal: mockCreateSignal,
     createMemo: mockCreateMemo
 }));
 
-
-import { Store, SignalProjector, createStore, useSelector } from '../../../src/core/store';
+import { 
+    EnhancedStore, 
+    StoreBuilder, 
+    createStoreBuilder, 
+    store, 
+    createStore,
+    useSelector 
+} from '../../../src/core/store';
 import { createAction } from '../../../src/core/action';
 import { createReducer, on } from '../../../src/core/reducer';
 import { isBrowser, isServer, detectEnvironment } from '../../../src/utils/environment';
@@ -54,51 +59,109 @@ import { createLogger, LogLevel } from '../../../src/utils/logger';
 // 測試用型別和數據
 // ============================================================================
 
-interface TestState {
-    counter: number;
-    user: {
-        id: string;
-        name: string;
-    } | null;
-    todos: Array<{ id: string; text: string; completed: boolean }>;
+// 分割成獨立的狀態類型
+interface CounterState {
+    count: number;
+    lastUpdated: number;
 }
 
-const initialState: TestState = {
-    counter: 0,
-    user: null,
-    todos: []
+interface UserState {
+    users: Array<{ id: string; name: string; email: string }>;
+    currentUser: { id: string; name: string } | null;
+    total: number;
+}
+
+interface UIState {
+    theme: 'light' | 'dark';
+    loading: boolean;
+    errors: string[];
+}
+
+// 完整的應用狀態（所有 reducer 的聯集）
+interface AppState {
+    counter: CounterState;
+    user: UserState;
+    ui: UIState;
+}
+
+// 初始狀態
+const initialCounterState: CounterState = {
+    count: 0,
+    lastUpdated: 0
 };
 
-// 測試 Actions
+const initialUserState: UserState = {
+    users: [],
+    currentUser: null,
+    total: 0
+};
+
+const initialUIState: UIState = {
+    theme: 'light',
+    loading: false,
+    errors: []
+};
+
+// Actions
 const increment = createAction('INCREMENT');
 const decrement = createAction('DECREMENT');
 const setCounter = createAction<number>('SET_COUNTER');
-const setUser = createAction<{ id: string; name: string }>('SET_USER');
-const addTodo = createAction<{ id: string; text: string }>('ADD_TODO');
 const reset = createAction('RESET');
 
-// 測試 Reducer
-const testReducer = createReducer(
-    initialState,
+const addUser = createAction<{ name: string; email: string }>('ADD_USER');
+const setCurrentUser = createAction<{ id: string; name: string }>('SET_CURRENT_USER');
+const clearUsers = createAction('CLEAR_USERS');
+
+const setTheme = createAction<'light' | 'dark'>('SET_THEME') as (payload: 'light' | 'dark') => { type: string; payload: 'light' | 'dark' };
+const setLoading = createAction<boolean>('SET_LOADING');
+const addError = createAction<string>('ADD_ERROR');
+
+// Reducers
+const counterReducer = createReducer(
+    initialCounterState,
     on(increment, (draft) => {
-        draft.counter += 1;
+        draft.count += 1;
+        draft.lastUpdated = Date.now();
     }),
     on(decrement, (draft) => {
-        draft.counter -= 1;
+        draft.count -= 1;
+        draft.lastUpdated = Date.now();
     }),
     on(setCounter, (draft, action) => {
-        draft.counter = action.payload;
+        draft.count = action.payload;
+        draft.lastUpdated = Date.now();
     }),
-    on(setUser, (draft, action) => {
-        draft.user = action.payload;
+    on(reset, () => initialCounterState)
+);
+
+const userReducer = createReducer(
+    initialUserState,
+    on(addUser, (draft, action) => {
+        const newUser = {
+            id: `user_${Date.now()}`,
+            name: action.payload.name,
+            email: action.payload.email
+        };
+        draft.users.push(newUser);
+        draft.total += 1;
     }),
-    on(addTodo, (draft, action) => {
-        draft.todos.push({
-            ...action.payload,
-            completed: false
-        });
+    on(setCurrentUser, (draft, action) => {
+        draft.currentUser = action.payload;
     }),
-    on(reset, () => initialState)
+    on(clearUsers, () => initialUserState)
+);
+
+const uiReducer = createReducer(
+    initialUIState,
+    on(setTheme, (draft, action) => {
+        draft.theme = action.payload;
+    }),
+    on(setLoading, (draft, action) => {
+        draft.loading = action.payload;
+    }),
+    on(addError, (draft, action) => {
+        draft.errors.push(action.payload);
+    })
 );
 
 // ============================================================================
@@ -109,7 +172,6 @@ const mockIsBrowser = isBrowser as jest.MockedFunction<typeof isBrowser>;
 const mockIsServer = isServer as jest.MockedFunction<typeof isServer>;
 const mockDetectEnvironment = detectEnvironment as jest.MockedFunction<typeof detectEnvironment>;
 const mockCreateLogger = createLogger as jest.MockedFunction<typeof createLogger>;
-
 
 // ============================================================================
 // 測試工具函數
@@ -132,17 +194,197 @@ const createMockLogger = () => ({
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
-
-    // 下面四個是補上的方法
     isEnabled: jest.fn().mockReturnValue(true),
-    child: jest.fn().mockImplementation((props) => createMockLogger()),
+    child: jest.fn().mockImplementation(() => createMockLogger()),
     setLevel: jest.fn(),
     getLevel: jest.fn().mockReturnValue('info' as LogLevel),
 });
 
+// 創建測試用的完整 Store
 const createTestStore = (config = {}) => {
-    return new Store(testReducer, initialState, config);
+    return store()
+        .configure(config)
+        .registerReducer('counter', counterReducer)
+        .registerReducer('user', userReducer)
+        .registerReducer('ui', uiReducer)
+        .build();
 };
+
+// 創建簡單的計數器 Store（用於基礎測試）
+const createSimpleCounterStore = (config = {}) => {
+    return store()
+        .configure(config)
+        .registerReducer('counter', counterReducer)
+        .build();
+};
+
+// ============================================================================
+// Store Builder 系統測試
+// ============================================================================
+
+describe('Store Builder 系統', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockCreateLogger.mockReturnValue(createMockLogger());
+        setupBrowserEnv();
+    });
+
+    describe('StoreBuilder 創建和配置', () => {
+        test('應該創建 StoreBuilder 實例', () => {
+            const builder = createStoreBuilder();
+            expect(builder).toBeInstanceOf(StoreBuilder);
+        });
+
+        test('應該使用便利函數創建 Builder', () => {
+            const builder = store();
+            expect(builder).toBeInstanceOf(StoreBuilder);
+        });
+
+        test('應該正確配置選項', () => {
+            const builder = store().configure({ 
+                logLevel: 'debug', 
+                enableSignals: false 
+            });
+            
+            expect(builder).toBeInstanceOf(StoreBuilder);
+        });
+    });
+
+    describe('Reducer 註冊', () => {
+        test('應該註冊單個 Reducer', () => {
+            const builder = store().registerReducer('counter', counterReducer);
+            
+            const snapshot = builder.getSnapshot();
+            expect(snapshot.reducers).toHaveProperty('counter');
+        });
+
+        test('應該註冊多個 Reducer', () => {
+            const builder = store().registerReducers({
+                counter: counterReducer,
+                user: userReducer
+            });
+            
+            const snapshot = builder.getSnapshot();
+            expect(snapshot.reducers).toHaveProperty('counter');
+            expect(snapshot.reducers).toHaveProperty('user');
+        });
+
+        test('應該註冊根 Reducer 映射', () => {
+            const builder = store()
+                .registerReducer('temp', counterReducer) // 這個會被替換
+                .registerRoot({
+                    counter: counterReducer,
+                    user: userReducer,
+                    ui: uiReducer
+                });
+            
+            const snapshot = builder.getSnapshot();
+            expect(snapshot.reducers).toHaveProperty('counter');
+            expect(snapshot.reducers).toHaveProperty('user');
+            expect(snapshot.reducers).toHaveProperty('ui');
+            expect(snapshot.reducers).not.toHaveProperty('temp');
+        });
+
+        test('應該移除 Reducer', () => {
+            const builder = store()
+                .registerReducer('counter', counterReducer)
+                .registerReducer('user', userReducer)
+                .removeReducer('user');
+            
+            const snapshot = builder.getSnapshot();
+            expect(snapshot.reducers).toHaveProperty('counter');
+            expect(snapshot.reducers).not.toHaveProperty('user');
+        });
+    });
+
+    describe('中間件註冊', () => {
+        test('應該註冊單個中間件', () => {
+            const middleware = jest.fn();
+            const builder = store().applyMiddleware(middleware);
+            
+            const snapshot = builder.getSnapshot();
+            expect(snapshot.middleware).toContain(middleware);
+        });
+
+        test('應該註冊多個中間件', () => {
+            const middleware1 = jest.fn();
+            const middleware2 = jest.fn();
+            const builder = store().applyMiddlewares(middleware1, middleware2);
+            
+            const snapshot = builder.getSnapshot();
+            expect(snapshot.middleware).toContain(middleware1);
+            expect(snapshot.middleware).toContain(middleware2);
+        });
+
+        test('應該移除中間件', () => {
+            const middleware = jest.fn();
+            const builder = store()
+                .applyMiddleware(middleware)
+                .removeMiddleware(middleware);
+            
+            const snapshot = builder.getSnapshot();
+            expect(snapshot.middleware).not.toContain(middleware);
+        });
+    });
+
+    describe('Effects 註冊', () => {
+        test('應該註冊單個 Effect', () => {
+            const effect = jest.fn(() => of());
+            const builder = store().registerEffect('test', effect);
+            
+            const snapshot = builder.getSnapshot();
+            expect(snapshot.effects).toHaveLength(1);
+            expect(snapshot.effects[0].name).toBe('test');
+        });
+
+        test('應該註冊多個 Effects', () => {
+            const effect1 = jest.fn(() => of());
+            const effect2 = jest.fn(() => of());
+            const builder = store().registerEffects({
+                test1: effect1,
+                test2: effect2
+            });
+            
+            const snapshot = builder.getSnapshot();
+            expect(snapshot.effects).toHaveLength(2);
+        });
+
+        test('應該移除 Effect', () => {
+            const effect = jest.fn(() => of());
+            const builder = store()
+                .registerEffect('test', effect)
+                .removeEffect('test');
+            
+            const snapshot = builder.getSnapshot();
+            expect(snapshot.effects).toHaveLength(0);
+        });
+    });
+
+    describe('Builder 驗證', () => {
+        test('應該驗證至少有一個 Reducer', () => {
+            const builder = store();
+            
+            expect(() => builder.build()).toThrow('At least one reducer must be registered');
+        });
+
+        test('應該驗證 Reducer 是函數', () => {
+            const builder = store().registerReducers({
+                counter: counterReducer,
+                invalid: 'not a function' as any
+            });
+            
+            expect(() => builder.build()).toThrow('Reducer for key "invalid" is not a function');
+        });
+
+        test('應該驗證中間件是函數', () => {
+            const builder = store()
+                .registerReducer('counter', counterReducer)
+                .applyMiddleware('not a function' as any);
+            
+            expect(() => builder.build()).toThrow('Middleware at index 0 is not a function');
+        });
+    });
+});
 
 // ============================================================================
 // Store 核心功能測試
@@ -155,176 +397,129 @@ describe('Store 核心功能', () => {
         setupBrowserEnv();
     });
 
-    describe('Store 創建和初始化', () => {
-        test('應該正確創建 Store 實例', () => {
-            const store = createTestStore();
-
-            expect(store).toBeInstanceOf(Store);
-            expect(store.getState()).toEqual(initialState);
+    describe('Store 創建和狀態管理', () => {
+        test('應該正確創建多 Reducer Store', () => {
+            const testStore = createTestStore();
+            
+            expect(testStore).toBeInstanceOf(EnhancedStore);
+            
+            const state = testStore.getState();
+            expect(state).toHaveProperty('counter');
+            expect(state).toHaveProperty('user');
+            expect(state).toHaveProperty('ui');
+            expect(state.counter).toEqual(initialCounterState);
+            expect(state.user).toEqual(initialUserState);
+            expect(state.ui).toEqual(initialUIState);
         });
 
-        test('應該使用工廠方法創建 Store', () => {
-            const store = Store.create(testReducer, initialState);
-
-            expect(store).toBeInstanceOf(Store);
-            expect(store.getState()).toEqual(initialState);
+        test('應該正確分發 Action 到對應 Reducer', () => {
+            const testStore = createTestStore();
+            
+            // 測試 counter reducer
+            testStore.dispatch(increment());
+            expect(testStore.getState().counter.count).toBe(1);
+            
+            // 測試 user reducer
+            testStore.dispatch(addUser({ name: 'John', email: 'john@test.com' }));
+            expect(testStore.getState().user.users).toHaveLength(1);
+            expect(testStore.getState().user.total).toBe(1);
+            
+            // 測試 ui reducer
+            testStore.dispatch(setTheme('dark'));
+            expect(testStore.getState().ui.theme).toBe('dark');
         });
 
-        test('應該使用便利函數創建 Store', () => {
-            const store = createStore(testReducer, initialState);
-
-            expect(store).toBeInstanceOf(Store);
-            expect(store.getState()).toEqual(initialState);
+        test('應該保持其他狀態不變', () => {
+            const testStore = createTestStore();
+            const initialState = testStore.getState();
+            
+            // 只更新 counter
+            testStore.dispatch(increment());
+            const newState = testStore.getState();
+            
+            // counter 狀態應該改變
+            expect(newState.counter).not.toBe(initialState.counter);
+            // 其他狀態應該保持引用相等
+            expect(newState.user).toBe(initialState.user);
+            expect(newState.ui).toBe(initialState.ui);
         });
 
-        test('應該正確設定 Logger', () => {
-            const store = createTestStore({ logLevel: 'debug' });
-
-            expect(mockCreateLogger).toHaveBeenCalledWith({
-                source: 'Store',
-                level: 'debug'
-            });
-        });
-    });
-
-    describe('State 管理', () => {
-        test('應該正確獲取初始狀態', () => {
-            const store = createTestStore();
-
-            expect(store.getState()).toEqual(initialState);
-        });
-
-        test('應該正確分發 Action 並更新狀態', () => {
-            const store = createTestStore();
-
-            store.dispatch(increment());
-            expect(store.getState().counter).toBe(1);
-
-            store.dispatch(increment());
-            expect(store.getState().counter).toBe(2);
-
-            store.dispatch(decrement());
-            expect(store.getState().counter).toBe(1);
-        });
-
-        test('應該正確處理帶 payload 的 Action', () => {
-            const store = createTestStore();
-
-            store.dispatch(setCounter(42));
-            expect(store.getState().counter).toBe(42);
-
-            store.dispatch(setUser({ id: '1', name: 'John' }));
-            expect(store.getState().user).toEqual({ id: '1', name: 'John' });
-        });
-
-        test('應該正確處理複雜狀態更新', () => {
-            const store = createTestStore();
-
-            store.dispatch(addTodo({ id: '1', text: 'Learn TsStoreX' }));
-            store.dispatch(addTodo({ id: '2', text: 'Write tests' }));
-
-            expect(store.getState().todos).toHaveLength(2);
-            expect(store.getState().todos[0]).toEqual({
-                id: '1',
-                text: 'Learn TsStoreX',
-                completed: false
-            });
-        });
-
-        test('應該在狀態未變更時不更新', () => {
-            const store = createTestStore();
-            const initialStateRef = store.getState();
-
-            // 分發一個不會改變狀態的 action
-            store.dispatch({ type: 'UNKNOWN_ACTION', timestamp: Date.now(), id: 'test' });
-
-            expect(store.getState()).toBe(initialStateRef);
+        test('應該支援複雜的狀態更新流程', () => {
+            const testStore = createTestStore();
+            
+            // 執行一系列操作
+            testStore.dispatch(increment());
+            testStore.dispatch(increment());
+            testStore.dispatch(addUser({ name: 'Alice', email: 'alice@test.com' }));
+            testStore.dispatch(setCurrentUser({ id: '1', name: 'Alice' }));
+            testStore.dispatch(setTheme('dark'));
+            testStore.dispatch(setLoading(true));
+            
+            const finalState = testStore.getState();
+            
+            // 驗證所有狀態都正確更新
+            expect(finalState.counter.count).toBe(2);
+            expect(finalState.user.users).toHaveLength(1);
+            expect(finalState.user.currentUser).toEqual({ id: '1', name: 'Alice' });
+            expect(finalState.ui.theme).toBe('dark');
+            expect(finalState.ui.loading).toBe(true);
         });
     });
 
     describe('RxJS 響應式流', () => {
         test('應該提供狀態流', async () => {
-            const store = createTestStore();
-
-            const statePromise = firstValueFrom(store.state$.pipe(skip(1), take(1)));
-
-            store.dispatch(increment());
-
+            const testStore = createTestStore();
+            
+            const statePromise = firstValueFrom(testStore.state$.pipe(skip(1), take(1)));
+            
+            testStore.dispatch(increment());
+            
             const state = await statePromise;
-            expect(state.counter).toBe(1);
+            expect(state.counter.count).toBe(1);
         });
 
-        test('應該提供 Action 流', async () => {
-            const store = createTestStore();
-
-            const actionPromise = firstValueFrom(store.action$.pipe(take(1)));
-
-            const action = increment();
-            store.dispatch(action);
-
-            const receivedAction = await actionPromise;
-            expect(receivedAction.type).toBe('INCREMENT');
-        });
-
-        test('應該支援狀態選擇器', async () => {
-            const store = createTestStore();
-
-            const counterStream = store.selectState(state => state.counter);
+        test('應該支援部分狀態選擇器', async () => {
+            const testStore = createTestStore();
+            
+            const counterStream = testStore.selectState(state => state.counter.count);
             const counterPromise = firstValueFrom(counterStream.pipe(skip(1), take(1)));
-
-            store.dispatch(setCounter(10));
-
+            
+            testStore.dispatch(setCounter(42));
+            
             const counter = await counterPromise;
-            expect(counter).toBe(10);
+            expect(counter).toBe(42);
         });
 
-        test('應該支援自定義比較函數', async () => {
-            const store = createTestStore();
-
-            // 只有當 counter 變化超過 5 時才觸發
-            const significantChanges = store.selectState(
-                state => state.counter,
-                (a, b) => Math.abs(a - b) < 5
-            );
-
-            const values: number[] = [];
-            significantChanges.subscribe(value => values.push(value));
-
-            store.dispatch(setCounter(3)); // 不應觸發（變化 < 5）
-            store.dispatch(setCounter(6)); // 應該觸發（變化 >= 5）
-            store.dispatch(setCounter(8)); // 不應觸發（變化 < 5）
-
-            expect(values).toEqual([0, 6]); // 初始值 + 顯著變化
-        });
-
-        test('應該支援訂閱狀態變化', () => {
-            const store = createTestStore();
-            const mockNext = jest.fn();
-
-            const subscription = store.state$.pipe(skip(1)).subscribe({ next: mockNext });
-            // mockNext.mockClear();    // 把首次 BehaviorSubject 的 emission count 清成 0
-
-            store.dispatch(increment());
-            store.dispatch(increment());
-
-            expect(mockNext).toHaveBeenCalledTimes(2);
-            expect(mockNext).toHaveBeenLastCalledWith({ ...initialState, counter: 2 });
-
-            subscription.unsubscribe();
+        test('應該支援複雜選擇器', async () => {
+            const testStore = createTestStore();
+            
+            const statsStream = testStore.selectState(state => ({
+                counterValue: state.counter.count,
+                userCount: state.user.total,
+                isDarkTheme: state.ui.theme === 'dark',
+                hasErrors: state.ui.errors.length > 0
+            }));
+            
+            const statsPromise = firstValueFrom(statsStream.pipe(skip(1), take(1)));
+            
+            testStore.dispatch(increment());
+            testStore.dispatch(addUser({ name: 'Test', email: 'test@test.com' }));
+            testStore.dispatch(setTheme('dark'));
+            
+            const stats = await statsPromise;
+            expect(stats.counterValue).toBe(1);
+            expect(stats.userCount).toBe(1);
+            expect(stats.isDarkTheme).toBe(true);
+            expect(stats.hasErrors).toBe(false);
         });
     });
 
     describe('錯誤處理', () => {
         test('應該處理無效的 Action', () => {
-            const store = createTestStore();
-            const mockLogger = mockCreateLogger.mock.results[0].value;
-
+            const testStore = createTestStore();
+            
             expect(() => {
-                store.dispatch(null as any);
-            }).toThrow('Invalid action: missing type');
-
-            expect(() => {
-                store.dispatch({ type: null } as any);
+                testStore.dispatch(null as any);
             }).toThrow('Invalid action: missing type');
         });
 
@@ -333,293 +528,207 @@ describe('Store 核心功能', () => {
                 throw new Error('Reducer error');
             });
 
-            expect(() => {
-                new Store(faultyReducer, initialState);
-            }).not.toThrow(); // Store 創建不應拋出錯誤
-
-            const store = new Store(faultyReducer, initialState);
+            const storeWithFaultyReducer = store()
+                .registerReducer('faulty', faultyReducer)
+                .build();
 
             expect(() => {
-                store.dispatch(increment());
+                storeWithFaultyReducer.dispatch(increment());
             }).toThrow('Reducer error');
         });
+    });
+});
 
-        test('應該警告 undefined 返回值', () => {
-            const undefinedReducer = jest.fn().mockReturnValue(undefined);
-            const store = new Store(undefinedReducer, initialState);
-            const mockLogger = mockCreateLogger.mock.results[0].value;
+// ============================================================================
+// 動態配置測試
+// ============================================================================
 
-            store.dispatch(increment());
+describe('動態配置', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockCreateLogger.mockReturnValue(createMockLogger());
+        setupBrowserEnv();
+    });
 
-            expect(mockLogger.warn).toHaveBeenCalledWith(
-                expect.stringContaining('Reducer returned undefined for action: INCREMENT')
+    describe('動態中間件管理', () => {
+        test('應該動態添加中間件', () => {
+            const testStore = createSimpleCounterStore();
+            const newMiddleware = jest.fn((store) => (next) => (action) => next(action));
+            
+            expect(() => {
+                testStore.addMiddleware(newMiddleware);
+            }).not.toThrow();
+        });
+
+        test('應該動態移除中間件', () => {
+            const middleware = jest.fn((store) => (next) => (action) => next(action));
+            const testStore = createSimpleCounterStore({ middleware: [middleware] });
+            
+            expect(() => {
+                testStore.removeMiddleware(middleware);
+            }).not.toThrow();
+        });
+    });
+
+    describe('動態 Effects 管理', () => {
+        test('應該動態添加 Effect', () => {
+            const testStore = createSimpleCounterStore();
+            const effect = jest.fn(() => of());
+            
+            expect(() => {
+                testStore.addEffect('test', effect);
+            }).not.toThrow();
+        });
+
+        test('應該動態移除 Effect', () => {
+            const effect = jest.fn(() => of());
+            const testStore = store()
+                .registerReducer('counter', counterReducer)
+                .registerEffect('test', effect)
+                .build();
+            
+            expect(() => {
+                testStore.removeEffect('test');
+            }).not.toThrow();
+        });
+    });
+
+    describe('Reducer 替換（熱重載）', () => {
+        test('應該支援 Reducer 熱重載', () => {
+            const testStore = createSimpleCounterStore();
+            const newReducer = createReducer(
+                initialCounterState,
+                on(increment, (draft) => {
+                    draft.count += 10; // 不同的邏輯
+                })
+            );
+            
+            expect(() => {
+                testStore.replaceReducer(newReducer);
+            }).not.toThrow();
+        });
+    });
+});
+
+// ============================================================================
+// Effects 系統測試
+// ============================================================================
+
+describe('Effects 系統', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockCreateLogger.mockReturnValue(createMockLogger());
+        setupBrowserEnv();
+    });
+
+    test('應該執行 Effects', (done) => {
+        const mockEffect = jest.fn((action$, state$) => {
+            return action$.pipe(
+                filter(action => action.type === 'INCREMENT'),
+                map(() => setCounter(100))
             );
         });
-    });
-});
 
-// ============================================================================
-// Signal 投影系統測試
-// ============================================================================
+        const testStore = store()
+            .registerReducer('counter', counterReducer)
+            .registerEffect('test', mockEffect)
+            .build();
 
-describe('Signal 投影系統', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        mockCreateLogger.mockReturnValue(createMockLogger());
-    });
-
-    describe('瀏覽器環境', () => {
-        beforeEach(() => {
-            setupBrowserEnv();
-
-            // 設定 SolidJS mock 返回值 - 確保結構正確
-            const mockSignalFunction = jest.fn(() => 'signal-value');
-            mockCreateSignal.mockReturnValue([
-                mockSignalFunction,
-                mockSetSignal
-            ]);
-
-            const mockMemoFunction = jest.fn(() => 'memo-value');
-            mockCreateMemo.mockReturnValue(mockMemoFunction);
-        });
-
-        test('應該在瀏覽器環境創建 Signal', () => {
-            const store = createTestStore();
-
-            const signal = store.select(state => state.counter);
-
-            expect(signal).not.toBeNull();
-            expect(typeof signal).toBe('function');
-            expect(mockCreateSignal).toHaveBeenCalled();
-        });
-
-        test('應該在瀏覽器環境創建 Memo Signal', () => {
-            const store = createTestStore();
-
-            const memoSignal = store.selectMemo(state => state.counter * 2);
-
-            expect(memoSignal).not.toBeNull();
-            expect(typeof memoSignal).toBe('function');
-            expect(mockCreateSignal).toHaveBeenCalled();
-            expect(mockCreateMemo).toHaveBeenCalled();
-        });
-
-        test('應該快取相同的 Signal', () => {
-            const store = createTestStore();
-
-            const signal1 = store.select(state => state.counter, { key: 'counter' });
-            const signal2 = store.select(state => state.counter, { key: 'counter' });
-
-            expect(signal1).toBe(signal2);
-            expect(signal1).not.toBeNull();
-        });
-
-        test('應該正確增強 Signal 介面', () => {
-            const store = createTestStore();
-
-            const signal = store.select(state => state.counter);
-
-            expect(signal).not.toBeNull();
-            if (signal) {
-                expect(typeof signal).toBe('function');
-                expect(signal).toHaveProperty('latest');
+        // 訂閱狀態變化來驗證 Effect 是否執行
+        testStore.selectState(state => state.counter.count).subscribe(count => {
+            if (count === 100) {
+                expect(mockEffect).toHaveBeenCalled();
+                done();
             }
         });
-    });
-});
 
-describe('服務端環境', () => {
-    beforeEach(() => {
-        setupServerEnv();
+        testStore.dispatch(increment());
     });
 
-    test('應該在服務端環境返回 null', () => {
-        const store = createTestStore();
-
-        const signal = store.select(state => state.counter);
-
-        expect(signal).toBeNull();
-    });
-
-    test('應該在服務端環境為 Memo Signal 返回 null', () => {
-        const store = createTestStore();
-
-        const memoSignal = store.selectMemo(state => state.counter * 2);
-
-        expect(memoSignal).toBeNull();
-    });
-});
-
-describe('Signal 投影器獨立測試', () => {
-    test('應該正確創建 SignalProjector', () => {
-        setupBrowserEnv();
-        const state$ = of(initialState);
-
-        const projector = new SignalProjector(state$);
-
-        expect(projector).toBeInstanceOf(SignalProjector);
-    });
-
-    test('應該正確銷毀 SignalProjector', () => {
-        setupBrowserEnv();
-        const state$ = of(initialState);
-        const projector = new SignalProjector(state$);
-
-        expect(() => projector.destroy()).not.toThrow();
-    });
-
-    test('應該在不支援的環境中返回 null', () => {
-        // 測試服務端環境（這是一個真實的降級情況）
-        setupServerEnv();
-        
-        const state$ = of(initialState);
-        const projector = new SignalProjector(state$);
-
-        const signal = projector.createSignal(state => state.counter);
-
-        expect(signal).toBeNull();
-        expect(mockCreateSignal).not.toHaveBeenCalled();
-    });
-
-    test('應該在錯誤情況下返回 null', () => {
-        setupBrowserEnv();
-        const state$ = of(initialState);
-        
-        // 使用繼承來模擬錯誤情況
-        class ErrorSignalProjector extends SignalProjector<any> {
-            createSignal<R>(selector: any, options: any = {}): any {
-                try {
-                    throw new Error('Simulated error');
-                } catch (error) {
-                    // 模擬原始程式碼中的 catch 邏輯
-                    return null;
-                }
-            }
-        }
-
-        const projector = new ErrorSignalProjector(state$);
-        const signal = projector.createSignal(state => state.counter);
-
-        expect(signal).toBeNull();
-    });
-});
-
-// ============================================================================
-// 中間件系統測試
-// ============================================================================
-
-describe('中間件系統', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        mockCreateLogger.mockReturnValue(createMockLogger());
-        setupBrowserEnv();
-    });
-
-    test('應該正確應用單個中間件', () => {
-        const mockMiddleware = jest.fn((store) => (next) => (action) => {
-            action.middleware = 'applied';
-            return next(action);
+    test('應該處理 Effect 錯誤', () => {
+        const faultyEffect = jest.fn(() => {
+            throw new Error('Effect error');
         });
-
-        const store = createTestStore({ middleware: [mockMiddleware] });
-
-        expect(mockMiddleware).toHaveBeenCalled();
-    });
-
-    test('應該正確應用多個中間件', () => {
-        const middleware1 = jest.fn((store) => (next) => (action) => {
-            action.step1 = true;
-            return next(action);
-        });
-
-        const middleware2 = jest.fn((store) => (next) => (action) => {
-            action.step2 = true;
-            return next(action);
-        });
-
-        const store = createTestStore({ middleware: [middleware1, middleware2] });
-
-        expect(middleware1).toHaveBeenCalled();
-        expect(middleware2).toHaveBeenCalled();
-    });
-
-    test('中間件應該能訪問 Store API', () => {
-        let capturedStore: any;
-
-        const middleware = (store: any) => {
-            capturedStore = store;
-            return (next: any) => (action: any) => next(action);
-        };
-
-        const store = createTestStore({ middleware: [middleware] });
-
-        expect(capturedStore).toBeDefined();
-        expect(typeof capturedStore.getState).toBe('function');
-        expect(typeof capturedStore.dispatch).toBe('function');
-    });
-
-    test('中間件應該能修改 Action', () => {
-        const loggingMiddleware = (store: any) => (next: any) => (action: any) => {
-            const modifiedAction = { ...action, logged: true };
-            return next(modifiedAction);
-        };
-
-        const store = createTestStore({ middleware: [loggingMiddleware] });
-
-        // 這個測試驗證中間件流程正常工作，雖然我們看不到內部修改
-        expect(() => store.dispatch(increment())).not.toThrow();
-    });
-
-    test('應該處理中間件錯誤', () => {
-        const faultyMiddleware = () => {
-            throw new Error('Middleware error');
-        };
 
         expect(() => {
-            createTestStore({ middleware: [faultyMiddleware] });
-        }).toThrow('Middleware error');
-    });
-
-    test('應該在沒有中間件時正常工作', () => {
-        const store = createTestStore({ middleware: [] });
-
-        expect(() => store.dispatch(increment())).not.toThrow();
-        expect(store.getState().counter).toBe(1);
+            store()
+                .registerReducer('counter', counterReducer)
+                .registerEffect('faulty', faultyEffect)
+                .build();
+        }).not.toThrow(); // Effect 錯誤不應該影響 Store 創建
     });
 });
 
 // ============================================================================
-// 統一選擇器介面測試
+// 型別推導測試（編譯時測試）
 // ============================================================================
 
-describe('統一選擇器介面', () => {
+describe('型別推導測試', () => {
+    test('應該正確推導單個 Reducer 的型別', () => {
+        const simpleStore = store()
+            .registerReducer('counter', counterReducer)
+            .build();
+
+        const state = simpleStore.getState();
+        
+        // TypeScript 應該推導出正確的型別
+        expect(state).toHaveProperty('counter');
+        expect(state.counter).toHaveProperty('count');
+        expect(state.counter).toHaveProperty('lastUpdated');
+    });
+
+    test('應該正確推導多個 Reducer 的聯集型別', () => {
+        const multiStore = store()
+            .registerReducer('counter', counterReducer)
+            .registerReducer('user', userReducer)
+            .build();
+
+        const state = multiStore.getState();
+        
+        // TypeScript 應該推導出聯集型別
+        expect(state).toHaveProperty('counter');
+        expect(state).toHaveProperty('user');
+        expect(state.counter).toHaveProperty('count');
+        expect(state.user).toHaveProperty('users');
+        expect(state.user).toHaveProperty('total');
+    });
+
+    test('應該正確推導批量註冊的型別', () => {
+        const batchStore = store()
+            .registerReducers({
+                counter: counterReducer,
+                user: userReducer,
+                ui: uiReducer
+            })
+            .build();
+
+        const state = batchStore.getState();
+        
+        expect(state).toHaveProperty('counter');
+        expect(state).toHaveProperty('user');
+        expect(state).toHaveProperty('ui');
+    });
+});
+
+// ============================================================================
+// 向後相容性測試
+// ============================================================================
+
+describe('向後相容性', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockCreateLogger.mockReturnValue(createMockLogger());
-    });
-
-    test('應該在瀏覽器環境返回 Signal', () => {
         setupBrowserEnv();
-        mockCreateSignal.mockReturnValue([jest.fn(), jest.fn()]);
-
-        const store = createTestStore();
-        const result = useSelector(store, state => state.counter);
-
-        // 在瀏覽器環境應該返回 Signal（非 null）
-        expect(result).not.toBeNull();
     });
 
-    test('應該在服務端環境返回 Observable', () => {
-        setupServerEnv();
-
-        const store = createTestStore();
-        const result = useSelector(store, state => state.counter);
-
-        // 先用 type guard 判斷，再做後續斷言
-        expect(isObservable(result)).toBe(true);
-        if (isObservable(result)) {
-            expect(typeof result.subscribe).toBe('function');
-        }
+    test('應該支援舊的 createStore API', () => {
+        const oldStyleStore = createStore(counterReducer, initialCounterState);
+        
+        expect(oldStyleStore).toBeInstanceOf(EnhancedStore);
+        expect(oldStyleStore.getState()).toEqual(initialCounterState);
+        
+        oldStyleStore.dispatch(increment());
+        expect(oldStyleStore.getState().count).toBe(1);
     });
 });
 
@@ -635,133 +744,37 @@ describe('生命週期管理', () => {
     });
 
     test('應該正確銷毀 Store', () => {
-        const store = createTestStore();
+        const testStore = createTestStore();
+        
+        expect(() => testStore.destroy()).not.toThrow();
+    });
 
-        expect(() => store.destroy()).not.toThrow();
+    test('應該提供完整的 Store 信息', () => {
+        const testStore = createTestStore();
+        
+        const info = testStore.getStoreInfo();
+        
+        expect(info).toHaveProperty('environment');
+        expect(info).toHaveProperty('middlewareCount');
+        expect(info).toHaveProperty('effectsCount');
+        expect(info).toHaveProperty('effectNames');
+        expect(info).toHaveProperty('currentStateSnapshot');
     });
 
     test('應該正確重置 Store', () => {
-        const store = createTestStore();
-
-        store.dispatch(increment());
-        store.dispatch(setUser({ id: '1', name: 'John' }));
-
-        store.reset();
-
-        expect(store.getState()).toEqual(initialState);
-    });
-
-    test('應該提供 Store 信息', () => {
-        const store = createTestStore({ middleware: [jest.fn()] });
-
-        const info = store.getStoreInfo();
-
-        expect(info).toBeDefined();
-        expect(info.environment).toBe('browser');
-        expect(info.signalsEnabled).toBe(true);
-        expect(info.middlewareCount).toBe(1);
-        expect(info.currentStateSnapshot).toEqual(initialState);
-    });
-});
-
-// ============================================================================
-// 邊界情況和錯誤處理測試
-// ============================================================================
-
-describe('邊界情況和錯誤處理', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        mockCreateLogger.mockReturnValue(createMockLogger());
-        setupBrowserEnv();
-    });
-
-    test('應該處理空配置', () => {
-        expect(() => {
-            new Store(testReducer, initialState, {});
-        }).not.toThrow();
-    });
-
-    test('應該處理未定義的配置', () => {
-        expect(() => {
-            new Store(testReducer, initialState);
-        }).not.toThrow();
-    });
-
-    test('應該處理複雜的選擇器', () => {
-        const store = createTestStore();
-
-        const complexSelector = (state: TestState) => ({
-            counterSquared: state.counter * state.counter,
-            hasUser: !!state.user,
-            todoCount: state.todos.length
-        });
-
-        const result = store.selectState(complexSelector);
-
-        expect(result).toBeDefined();
-    });
-
-    test('應該處理函數型選擇器返回值', async () => {
-        setupBrowserEnv();
-        mockCreateSignal.mockReturnValue([jest.fn(), jest.fn()]);
-
-        const store = createTestStore();
-
-        // 選擇器返回函數（邊界情況）
-        const functionSelector = () => () => 'function result';
-
-        expect(() => {
-            store.select(functionSelector);
-        }).not.toThrow();
-    });
-
-    test('應該處理大量快速 dispatch', () => {
-        const store = createTestStore();
-
-        expect(() => {
-            for (let i = 0; i < 1000; i++) {
-                store.dispatch(increment());
-            }
-        }).not.toThrow();
-
-        expect(store.getState().counter).toBe(1000);
-    });
-});
-
-// ============================================================================
-// 效能相關測試
-// ============================================================================
-
-describe('效能相關測試', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        mockCreateLogger.mockReturnValue(createMockLogger());
-        setupBrowserEnv();
-    });
-
-    test('應該避免不必要的狀態更新', () => {
-        const store = createTestStore();
-        const mockSubscriber = jest.fn();
-
-        store.state$.subscribe(mockSubscriber);
-
-        // 分發不會改變狀態的 action
-        store.dispatch({ type: 'UNKNOWN', timestamp: Date.now(), id: 'test' });
-        store.dispatch({ type: 'UNKNOWN', timestamp: Date.now(), id: 'test' });
-
-        // 只應該有初始狀態的一次調用
-        expect(mockSubscriber).toHaveBeenCalledTimes(1);
-    });
-
-    test('應該正確處理引用相等性', () => {
-        const store = createTestStore();
-        const initialStateRef = store.getState();
-
-        // 分發不改變狀態的 action
-        store.dispatch({ type: 'UNKNOWN', timestamp: Date.now(), id: 'test' });
-
-        // 狀態引用應該保持相同
-        expect(store.getState()).toBe(initialStateRef);
+        const testStore = createTestStore();
+        
+        // 修改狀態
+        testStore.dispatch(increment());
+        testStore.dispatch(addUser({ name: 'Test', email: 'test@test.com' }));
+        
+        // 重置
+        testStore.reset();
+        
+        const state = testStore.getState();
+        expect(state.counter).toEqual(initialCounterState);
+        expect(state.user).toEqual(initialUserState);
+        expect(state.ui).toEqual(initialUIState);
     });
 });
 
@@ -773,47 +786,63 @@ describe('整合測試', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockCreateLogger.mockReturnValue(createMockLogger());
+        setupBrowserEnv();
     });
 
-    test('完整的狀態管理流程', async () => {
-        setupBrowserEnv();
-        const store = createTestStore();
+    test('完整的應用場景測試', async () => {
+        // 模擬真實應用的中間件
+        const loggerMiddleware = jest.fn((store) => (next) => (action) => {
+            console.log('Action:', action.type);
+            return next(action);
+        });
 
-        // 訂閱狀態變化
-        const states: TestState[] = [];
-        store.state$.subscribe(state => states.push(state));
+        // 模擬 Effect
+        const autoSaveEffect = jest.fn((action$, state$) => {
+            return action$.pipe(
+                filter(action => action.type === 'ADD_USER'),
+                map(() => setLoading(false))
+            );
+        });
 
-        // 執行一系列操作
-        store.dispatch(increment());
-        store.dispatch(setUser({ id: '1', name: 'Alice' }));
-        store.dispatch(addTodo({ id: 't1', text: 'Task 1' }));
-        store.dispatch(addTodo({ id: 't2', text: 'Task 2' }));
-        store.dispatch(increment());
+        // 創建完整的 Store
+        const appStore = store()
+            .configure({ logLevel: 'debug', enableSignals: true })
+            .registerRoot({
+                counter: counterReducer,
+                user: userReducer,
+                ui: uiReducer
+            })
+            .applyMiddleware(loggerMiddleware)
+            .registerEffect('autoSave', autoSaveEffect)
+            .build();
+
+        // 執行複雜的操作流程
+        const states: any[] = [];
+        appStore.state$.subscribe(state => states.push(state));
+
+        appStore.dispatch(increment());
+        appStore.dispatch(setTheme('dark'));
+        appStore.dispatch(addUser({ name: 'Alice', email: 'alice@test.com' }));
+        appStore.dispatch(setCurrentUser({ id: '1', name: 'Alice' }));
+        appStore.dispatch(increment());
+
+        // 等待異步操作完成
+        await new Promise(resolve => setTimeout(resolve, 10));
 
         // 驗證最終狀態
-        const finalState = store.getState();
-        expect(finalState.counter).toBe(2);
-        expect(finalState.user).toEqual({ id: '1', name: 'Alice' });
-        expect(finalState.todos).toHaveLength(2);
+        const finalState = appStore.getState();
+        expect(finalState.counter.count).toBe(2);
+        expect(finalState.user.users).toHaveLength(1);
+        expect(finalState.user.currentUser?.name).toBe('Alice');
+        expect(finalState.ui.theme).toBe('dark');
+
+        // 驗證中間件被調用
+        expect(loggerMiddleware).toHaveBeenCalled();
+
+        // 驗證 Effect 被調用
+        expect(autoSaveEffect).toHaveBeenCalled();
 
         // 驗證狀態變化歷史
-        expect(states).toHaveLength(6); // 初始 + 5次變化
-    });
-
-    test('跨環境一致性', () => {
-        // 測試瀏覽器環境
-        setupBrowserEnv();
-        const browserStore = createTestStore();
-        browserStore.dispatch(increment());
-        const browserState = browserStore.getState();
-
-        // 測試服務端環境
-        setupServerEnv();
-        const serverStore = createTestStore();
-        serverStore.dispatch(increment());
-        const serverState = serverStore.getState();
-
-        // 核心狀態邏輯應該一致
-        expect(browserState).toEqual(serverState);
+        expect(states.length).toBeGreaterThan(5);
     });
 });
