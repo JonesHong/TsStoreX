@@ -7,7 +7,7 @@ import { Observable } from 'rxjs';
 import { map, distinctUntilChanged } from 'rxjs/operators';
 
 // 型別匯入
-import type { SignalSelector, SignalOptions } from './types';
+import  { SignalSelector, SignalOptions } from './types';
 
 // ============================================================================
 // useSelector 函數（直接從 store.ts 移植）

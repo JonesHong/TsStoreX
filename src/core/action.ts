@@ -1,95 +1,31 @@
-/**
- * Action 系統 - TsStoreX Core
- * 
- * 提供型別安全的 Action 創建和管理功能，包括：
- * - 基礎 Action 型別定義
- * - Action Creator 工廠函數
- * - Action Group 批量創建工具
- * - 完整的 TypeScript 型別推導支援
- * - FSA (Flux Standard Action) 相容性
- */
 import { v7 as uuidv7 } from 'uuid';
-// ===== 基礎型別定義 =====
-
-/**
- * 基礎 Action 介面
- * 所有 Action 都必須包含 type、timestamp 和 id
- */
-interface BaseAction {
-    /** Action 類型標識，唯一識別此動作 */
-    readonly type: string;
-    /** 動作創建時間戳 */
-    readonly timestamp: number;
-    /** 唯一識別碼，用於追蹤和除錯 */
-    readonly id: string;
-}
-
-/**
- * 帶 Payload 的 Action 型別
- * 支援泛型，提供完整的型別安全
- */
-type Action<T = void> = T extends void
-    ? BaseAction
-    : BaseAction & { readonly payload: T };
-
-/**
- * Action Creator 函數型別
- * 根據 Payload 型別自動推導函數簽名
- */
-type ActionCreator<T = void> = T extends void
-    ? (() => Action<T>) & { readonly type: string }
-    : ((payload: T) => Action<T>) & { readonly type: string };
-
-/**
- * Action Creator 配置選項
- */
-interface ActionCreatorConfig {
-    /** 是否啟用詳細日誌 */
-    enableLogging?: boolean;
-    /** 自定義時間戳生成器 */
-    timestampGenerator?: () => number;
-    /** 自定義 ID 生成器 */
-    idGenerator?: () => string;
-    /** Action 元資料 */
-    meta?: Record<string, any>;
-}
-
-/**
- * Action Group 配置
- */
-interface ActionGroupConfig<T extends Record<string, any>> {
-    /** 來源標識，會加到 type 前綴 */
-    source: string;
-    /** 事件定義，key 為事件名，value 為 payload 型別 */
-    events: T;
-    /** 額外配置 */
-    config?: ActionCreatorConfig;
-}
-
-/**
- * Action Group 返回型別
- * 根據事件定義自動生成對應的 Action Creator
- */
-type ActionGroup<T extends Record<string, any>> = {
-    [K in keyof T]: ActionCreator<T[K]>
-};
+import {
+    BaseAction,
+    Action,
+    ActionCreator,
+    ActionCreatorConfig,
+    ActionGroupConfig,
+    ActionGroup,
+    ExtractActionPayload,
+    ExtractGroupActions,
+    ActionUnion,
+    ActionFromCreators
+} from './types';
 
 // ===== 工具函數 =====
-
-
 /**
  * 預設時間戳生成器
  */
-const defaultTimestampGenerator = (): number => Date.now();
+export const defaultTimestampGenerator = (): number => Date.now();
 
 /**
  * 驗證 Action Type 格式
  */
-const validateActionType = (type: string): void => {
+export const validateActionType = (type: string): void => {
     if (typeof type !== 'string') {
         // null / undefined / 非字串
         throw new Error('Action type must be a non-empty string');
-      }
+    }
     if (type === '') {
         // 完全空字串
         throw new Error('Action type cannot be empty');
@@ -132,7 +68,7 @@ const formatSourcePrefix = (source: string): string => {
  * const action2 = setUser({ id: '1', name: 'John' });
  * ```
  */
-const createAction = <T = void>(
+export const createAction = <T = void>(
     type: string,
     config: ActionCreatorConfig = {}
 ): ActionCreator<T> => {
@@ -213,7 +149,7 @@ const createAction = <T = void>(
  * userActions.create({ id: '1', name: 'John' }); // { type: '[User] create', payload: { user: {...} }, ... }
  * ```
  */
-const createActionGroup = <T extends Record<string, any>>(
+export const createActionGroup = <T extends Record<string, any>>(
     groupConfig: ActionGroupConfig<T>
 ): ActionGroup<T> => {
     const { source, events, config = {} } = groupConfig;
@@ -263,7 +199,7 @@ const createActionGroup = <T extends Record<string, any>>(
  * }
  * ```
  */
-const isActionOf = <T = any>(
+export const isActionOf = <T = any>(
     action: BaseAction,
     actionCreator: ActionCreator<T>
 ): action is Action<T> => {
@@ -277,7 +213,7 @@ const isActionOf = <T = any>(
  * @param actionCreator - Action Creator
  * @returns 綁定的類型檢查函數
  */
-const createActionTypeGuard = <T = any>(
+export const createActionTypeGuard = <T = any>(
     actionCreator: ActionCreator<T>
 ) => {
     return (action: any): action is Action<T> => {
@@ -293,7 +229,7 @@ const createActionTypeGuard = <T = any>(
  * @param actionCreators - Action Creator 陣列
  * @returns 是否匹配任何一個 Action Creator
  */
-const isActionOfAny = <TActionCreators extends ReadonlyArray<ActionCreator<any>>>(
+export const isActionOfAny = <TActionCreators extends ReadonlyArray<ActionCreator<any>>>(
     action: BaseAction,
     actionCreators: TActionCreators
 ): action is ActionFromCreators<TActionCreators> => {
@@ -301,47 +237,14 @@ const isActionOfAny = <TActionCreators extends ReadonlyArray<ActionCreator<any>>
 };
 
 /**
- * 提取 Action Creator 陣列中所有可能的 Action 型別
- * 這是一個複雜的型別推導，用於支援 isActionOfAny 的型別安全
- */
-type ActionFromCreators<T extends ReadonlyArray<ActionCreator<any>>> = T extends ReadonlyArray<ActionCreator<infer U>>
-    ? Action<U>
-    : never;
-
-/**
- * 更精確的 Action Creator 陣列型別推導
- * 用於處理混合有 payload 和無 payload 的 Action Creator
- */
-type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never;
-
-type ActionCreatorReturnTypes<T extends ReadonlyArray<ActionCreator<any>>> = {
-    [K in keyof T]: T[K] extends ActionCreator<any> ? ReturnType<T[K]> : never;
-};
-
-type ActionUnion<T extends ReadonlyArray<ActionCreator<any>>> = ActionCreatorReturnTypes<T>[number];
-
-/**
  * 重新定義 isActionOfAny 使用更精確的型別推導
  */
-const isActionOfAnyPrecise = <TActionCreators extends ReadonlyArray<ActionCreator<any>>>(
+export const isActionOfAnyPrecise = <TActionCreators extends ReadonlyArray<ActionCreator<any>>>(
     action: BaseAction,
     actionCreators: TActionCreators
 ): action is ActionUnion<TActionCreators> => {
     return actionCreators.some(creator => action && typeof action === 'object' && action.type === creator.type);
 };
-
-/**
- * 提取 Action 的 Payload 類型
- * 輔助類型工具，用於型別推導
- */
-type ExtractActionPayload<T> = T extends ActionCreator<infer P> ? P : never;
-
-/**
- * 提取 Action Group 中所有 Action 的聯合類型
- */
-type ExtractGroupActions<T extends Record<string, ActionCreator<any>>> = {
-    [K in keyof T]: ReturnType<T[K]>
-}[keyof T];
 
 // ===== 除錯和工具函數 =====
 
@@ -349,7 +252,7 @@ type ExtractGroupActions<T extends Record<string, ActionCreator<any>>> = {
  * Action 序列化
  * 用於日誌記錄和除錯
  */
-const serializeAction = (action: any): string => {
+export const serializeAction = (action: any): string => {
     try {
         return JSON.stringify(action, null, 2);
     } catch (error) {
@@ -361,7 +264,7 @@ const serializeAction = (action: any): string => {
  * Action 資訊提取
  * 提取 Action 的關鍵資訊用於除錯
  */
-const getActionInfo = (action: any) => {
+export const getActionInfo = (action: any) => {
     return {
         type: action.type,
         timestamp: action.timestamp,
@@ -375,7 +278,7 @@ const getActionInfo = (action: any) => {
  * 創建 Action 除錯器
  * 提供除錯相關的工具方法
  */
-const createActionDebugger = (prefix: string = 'ActionDebug') => {
+export const createActionDebugger = (prefix: string = 'ActionDebug') => {
     return {
         log: (action: any) => {
             console.group(`${prefix}: ${action.type}`);
@@ -392,33 +295,4 @@ const createActionDebugger = (prefix: string = 'ActionDebug') => {
             console.groupEnd();
         }
     };
-};
-
-// ===== 匯出所有型別和函數 =====
-
-export {
-    // 型別
-    type BaseAction,
-    type Action,
-    type ActionCreator,
-    type ActionCreatorConfig,
-    type ActionGroupConfig,
-    type ActionGroup,
-    type ExtractActionPayload,
-    type ExtractGroupActions,
-    type ActionUnion,
-    type ActionFromCreators,
-
-    // 核心函數
-    createAction,
-    createActionGroup,
-
-    // 工具函數
-    isActionOf,
-    createActionTypeGuard,
-    isActionOfAny,
-    isActionOfAnyPrecise,
-    serializeAction,
-    getActionInfo,
-    createActionDebugger
 };

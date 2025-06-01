@@ -8,7 +8,7 @@ import { map, distinctUntilChanged, takeUntil, catchError } from 'rxjs/operators
 import { EMPTY } from 'rxjs';
 
 // 型別匯入
-import type { SignalSelector, SignalOptions } from './types';
+import  { SignalSelector, SignalOptions } from './types';
 
 // 工具匯入
 import { isServer } from '../utils/environment';

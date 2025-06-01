@@ -3,7 +3,7 @@
  * 從 store.ts 移出的基本驗證功能
  */
 
-import type { StoreBuilderSnapshot } from '../core/types';
+import  { StoreBuilderSnapshot } from '../core/types';
 
 /**
  * 驗證結果介面

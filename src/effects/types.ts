@@ -4,7 +4,7 @@
  */
 
 import { Observable, Subscription } from 'rxjs';
-import { BaseAction } from '../core/action';
+import  { BaseAction } from '../core/types';
 
 // ============================================================================
 // Effect 核心型別

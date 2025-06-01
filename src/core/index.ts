@@ -21,20 +21,9 @@ export {
   isActionOfAny,
   isActionOfAnyPrecise,
   serializeAction,
-  getActionInfo,
+  // getActionInfo,
   createActionDebugger,
   
-  // 型別
-  type BaseAction,
-  type Action,
-  type ActionCreator,
-  type ActionCreatorConfig,
-  type ActionGroupConfig,
-  type ActionGroup,
-  type ExtractActionPayload,
-  type ExtractGroupActions,
-  type ActionUnion,
-  type ActionFromCreators
 } from './action';
 
 // ============================================================================
@@ -51,10 +40,6 @@ export {
   createConditionalReducer,
   createResettableReducer,
   
-  // 型別
-  type Reducer,
-  type ReducerHandler,
-  type ReducersMapObject
 } from './reducer';
 
 // ============================================================================
@@ -67,9 +52,6 @@ export {
   // 便利函數
   useSelector,
   
-  // 型別
-  type SignalSelector,
-  type SignalOptions
 } from './store';
 
 // ============================================================================

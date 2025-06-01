@@ -1,23 +1,12 @@
 import { produce, Draft } from 'immer';
-import { BaseAction, ActionCreator } from './action';
-
-/**
- * Reducer 函數型別定義
- * @template T 狀態型別
- */
-export interface Reducer<T> {
-    (state: T | undefined, action: BaseAction): T;
-}
-
-/**
- * Reducer 處理器型別定義
- * @template T 狀態型別
- * @template A Action 型別
- */
-export interface ReducerHandler<T, A extends BaseAction> {
-    type: string;
-    reducer: (state: Draft<T>, action: A) => T | void;
-}
+import  {
+    BaseAction,
+    Reducer,
+    ReducerHandler,
+    ReducersMapObject,
+    ActionCreator
+  } from './types';
+  
 
 /**
  * 建立 Action-Reducer 綁定
@@ -126,13 +115,6 @@ export const createReducer = <T>(
     };
 };
 
-/**
- * Reducer 組合器型別定義
- * @template T 複合狀態型別
- */
-export type ReducersMapObject<T> = {
-    [K in keyof T]: Reducer<T[K]>;
-};
 
 /**
  * 組合多個 Reducer 成為一個根 Reducer

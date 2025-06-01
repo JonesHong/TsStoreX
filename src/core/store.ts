@@ -8,20 +8,20 @@ import { map, distinctUntilChanged, takeUntil, catchError } from 'rxjs/operators
 import { EMPTY } from 'rxjs';
 
 // 型別匯入（從拆分後的型別檔案）
-import type {
+import  {
   Dispatch,
   Middleware,
   MiddlewareAPI,
   EnhancedStoreConfig,
-  StoreDebugInfo
+  StoreDebugInfo,
+  Reducer
 } from './types';
 
-import type {
+import  {
   Effect,
   EffectConfig
 } from '../effects/types';
 
-import type { Reducer } from './reducer';
 
 // Signal 功能匯入（從拆分後的 Signal 模組）
 import { 
@@ -36,7 +36,7 @@ import {
 import { detectEnvironment, isBrowser } from '../utils/environment';
 import { createLogger, type Logger } from '../utils/logger';
 import { composeMiddleware } from '../utils/compose';
-import { BaseAction } from './action';
+import { BaseAction } from './types';
 
 // Builder 功能匯入（從拆分後的 Builder 模組）
 import { 
@@ -345,12 +345,8 @@ export {
   createStoreBuilder, 
   createStore, 
   store, 
-  type StoreBuilder,
   
   // Signal 模組
   useSelector,
   
-  // 型別
-  type SignalSelector,
-  type SignalOptions
 };
