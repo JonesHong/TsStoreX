@@ -12,12 +12,15 @@ import {
     isActionOfAny,
     serializeAction,
     getActionInfo,
-    createActionDebugger,
+    createActionDebugger
+} from '../../../src/core/action';
+
+import type {
+
     BaseAction,
     Action,
     ActionCreator
-} from '../../../src/core/action';
-
+} from '../../../src/core/types';
 // ===== 測試型別定義 =====
 
 interface User {
@@ -77,7 +80,7 @@ describe('Action System - createAction', () => {
 
     test('should generate UUIDs with proper time ordering', async () => {
         const increment = createAction('INCREMENT');
-        
+
         const action1 = increment();
         // 稍微延遲以確保時間戳不同
         await new Promise(resolve => setTimeout(resolve, 1));
@@ -131,7 +134,7 @@ describe('Action System - createAction', () => {
 
     test('should maintain UUID v7 format across multiple rapid creations', () => {
         const increment = createAction('INCREMENT');
-        const actions:BaseAction[] = [];
+        const actions: BaseAction[] = [];
 
         // 快速創建多個 action
         for (let i = 0; i < 100; i++) {
@@ -501,7 +504,7 @@ describe('Action System - Performance Tests', () => {
         const start = performance.now();
 
         // 創建大量 Actions
-        const actions:BaseAction[] = [];
+        const actions: BaseAction[] = [];
         for (let i = 0; i < 10000; i++) {
             actions.push(increment());
         }
