@@ -1,159 +1,236 @@
 /**
  * TsStoreX Effects 系統型別定義
- * 定義副作用管理相關的所有介面和型別
+ * 遵循 KISS 原則：簡單、直觀、易用
  */
 
-import { Observable, Subscription } from 'rxjs';
-import  { BaseAction } from '../core/types';
+import { Observable } from 'rxjs';
+import type { BaseAction } from '../core/types';
 
 // ============================================================================
-// Effect 核心型別
+// 基礎 Effect 型別
 // ============================================================================
 
 /**
- * Effect 函數介面
- * 接收 action 流和 state 流，回傳新的 action 流
+ * Effect 函數型別
+ * 接收 action$ 和 state$ 流，返回新的 action 流
+ * 
+ * @template T 狀態型別
  */
 export interface Effect<T = any> {
   (action$: Observable<BaseAction>, state$: Observable<T>): Observable<BaseAction>;
 }
 
 /**
- * Effect 執行策略
- */
-export type EffectStrategy = 
-  | 'switch'    // 切換：取消前一個，執行新的
-  | 'merge'     // 合併：所有 Effect 同時執行
-  | 'exhaust'   // 排斥：忽略新的，直到當前完成
-  | 'concat';   // 串聯：依序執行
-
-/**
  * Effect 配置選項
  */
-export interface EffectOptions {
-  /** 執行策略 */
-  strategy?: EffectStrategy;
-  /** 是否取消前一個 Effect */
-  cancelPrevious?: boolean;
-  /** 重試次數 */
-  retryCount?: number;
-  /** 重試延遲 (毫秒) */
-  retryDelay?: number;
-  /** 超時時間 (毫秒) */
-  timeout?: number;
-  /** 是否啟用錯誤追蹤 */
-  enableErrorTracking?: boolean;
-}
-
-/**
- * Effect 配置項目
- */
-export interface EffectConfig<T = any> {
-  /** Effect 名稱 */
+export interface EffectConfig {
+  /** Effect 名稱，用於識別和除錯 */
   name: string;
   /** Effect 函數 */
-  effect: Effect<T>;
-  /** 可選配置 */
-  config?: EffectOptions | undefined;
+  effect: Effect<any>;
+  /** 額外配置選項 */
+  config?: EffectOptions;
 }
 
+/**
+ * Effect 執行選項
+ */
+export interface EffectOptions {
+  /** 
+   * 執行策略
+   * - 'merge': 並行執行多個 effect（預設）
+   * - 'switch': 新的 effect 會取消正在執行的 effect
+   * - 'exhaust': 忽略新的 effect 直到當前 effect 完成
+   * - 'concat': 按順序執行 effect
+   */
+  strategy?: EffectStrategy;
+  
+  /** 是否在錯誤時自動重試 */
+  autoRetry?: boolean;
+  
+  /** 重試次數（當 autoRetry 為 true 時有效） */
+  retryCount?: number;
+  
+  /** 重試延遲時間（毫秒） */
+  retryDelay?: number;
+  
+  /** 是否啟用（可用於動態開關 effect） */
+  enabled?: boolean;
+  
+  /** 只響應特定的 Action 類型 */
+  actionFilter?: string[] | ((action: BaseAction) => boolean);
+}
+
+/**
+ * Effect 執行策略
+ */
+export type EffectStrategy = 'merge' | 'switch' | 'exhaust' | 'concat';
+
 // ============================================================================
-// Effect Manager 型別
+// Effect Manager 相關型別
 // ============================================================================
 
 /**
- * Effect 管理器配置
+ * Effect Manager 配置
  */
 export interface EffectManagerConfig {
-  /** 日誌級別 */
-  logLevel?: 'debug' | 'info' | 'warn' | 'error';
-  /** 最大同時執行的 Effect 數量 */
-  maxConcurrentEffects?: number;
-  /** 是否啟用效能監控 */
-  enablePerformanceTracking?: boolean;
-  /** 全域錯誤處理函數 */
-  globalErrorHandler?: (error: EffectError, effectName: string) => void;
+  /** 全域錯誤處理器 */
+  onError?: (error: Error, effectName: string, action: BaseAction) => void;
+  
+  /** 全域日誌級別 */
+  logLevel?: 'debug' | 'info' | 'warn' | 'error' | 'silent';
+  
+  /** 是否在錯誤時自動重啟 effect */
+  autoRestart?: boolean;
+  
+  /** 最大並行 effect 數量 */
+  maxConcurrency?: number;
 }
 
 /**
- * Effect 執行狀態
+ * Effect 執行資訊
  */
-export type EffectStatus = 
-  | 'idle'        // 閒置
-  | 'running'     // 執行中
-  | 'completed'   // 完成
-  | 'cancelled'   // 已取消
-  | 'error';      // 錯誤
-
-/**
- * Effect 實例資訊
- */
-export interface EffectInstance<T = any> {
+export interface EffectExecutionInfo {
   /** Effect 名稱 */
   name: string;
-  /** Effect 配置 */
-  config: EffectConfig<T>;
-  /** 當前狀態 */
-  status: EffectStatus;
-  /** 訂閱物件 */
-  subscription?: Subscription;
+  
+  /** 觸發的 Action */
+  triggerAction: BaseAction;
+  
   /** 開始時間 */
-  startedAt?: Date;
-  /** 完成時間 */
-  completedAt?: Date;
+  startTime: number;
+  
+  /** 執行狀態 */
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  
+  /** 結束時間 */
+  endTime?: number;
+  
   /** 錯誤資訊 */
-  error?: EffectError;
-  /** 執行統計 */
-  stats: EffectStats;
+  error?: Error;
+  
+  /** 產生的 Actions */
+  resultActions?: BaseAction[];
 }
 
 /**
- * Effect 執行統計
+ * Effect 統計資訊
  */
 export interface EffectStats {
+  /** Effect 名稱 */
+  name: string;
+  
   /** 執行次數 */
   executionCount: number;
+  
   /** 成功次數 */
   successCount: number;
-  /** 錯誤次數 */
-  errorCount: number;
-  /** 平均執行時間 (毫秒) */
+  
+  /** 失敗次數 */
+  failureCount: number;
+  
+  /** 平均執行時間（毫秒） */
   averageExecutionTime: number;
+  
   /** 最後執行時間 */
-  lastExecutedAt?: Date;
-  /** 最後錯誤時間 */
-  lastErrorAt?: Date;
+  lastExecutionTime?: number;
+  
+  /** 當前狀態 */
+  isRunning: boolean;
 }
 
 // ============================================================================
-// Effect 錯誤型別
+// Effect 工廠和工具型別
 // ============================================================================
 
 /**
- * Effect 錯誤型別
+ * Effect 工廠函數型別
  */
-export type EffectErrorType = 
-  | 'EXECUTION_FAILED'     // 執行失敗
-  | 'TIMEOUT'              // 超時
-  | 'CANCELLED'            // 被取消
-  | 'INVALID_CONFIG'       // 配置無效
-  | 'STREAM_ERROR'         // 流錯誤
-  | 'DEPENDENCY_ERROR';    // 依賴錯誤
+export type EffectFactory<T = any, Config = any> = (config?: Config) => Effect<T>;
 
 /**
- * Effect 錯誤介面
+ * Effect 建構器配置
  */
-export interface EffectError extends Error {
-  /** 錯誤型別 */
-  type: EffectErrorType;
-  /** Effect 名稱 */
-  effectName: string;
-  /** 原始錯誤 */
-  originalError?: Error;
-  /** 錯誤發生時間 */
-  timestamp: Date;
-  /** 額外上下文資訊 */
-  context?: Record<string, any>;
+export interface EffectBuilder<T = any> {
+  /** 設定 Effect 名稱 */
+  name(name: string): EffectBuilder<T>;
+  
+  /** 設定執行策略 */
+  strategy(strategy: EffectStrategy): EffectBuilder<T>;
+  
+  /** 設定 Action 過濾器 */
+  filter(filter: string[] | ((action: BaseAction) => boolean)): EffectBuilder<T>;
+  
+  /** 設定錯誤處理 */
+  onError(handler: (error: Error, action: BaseAction) => Observable<BaseAction> | void): EffectBuilder<T>;
+  
+  /** 設定重試邏輯 */
+  retry(count: number, delay?: number): EffectBuilder<T>;
+  
+  /** 建構 Effect 配置 */
+  build(): EffectConfig;
+}
+
+// ============================================================================
+// 預設 Effects 相關型別
+// ============================================================================
+
+/**
+ * HTTP Effect 配置
+ */
+export interface HttpEffectConfig {
+  /** API 基礎 URL */
+  baseUrl?: string;
+  
+  /** 預設請求標頭 */
+  defaultHeaders?: Record<string, string>;
+  
+  /** 請求超時時間（毫秒） */
+  timeout?: number;
+  
+  /** 重試配置 */
+  retry?: {
+    count: number;
+    delay: number;
+    condition?: (error: any) => boolean;
+  };
+}
+
+/**
+ * Timer Effect 配置
+ */
+export interface TimerEffectConfig {
+  /** 延遲時間（毫秒） */
+  delay?: number;
+  
+  /** 間隔時間（毫秒，用於週期性執行） */
+  interval?: number;
+  
+  /** 是否立即執行 */
+  immediate?: boolean;
+  
+  /** 最大執行次數（用於間隔執行） */
+  maxCount?: number;
+}
+
+/**
+ * Storage Effect 配置
+ */
+export interface StorageEffectConfig {
+  /** 儲存鍵名 */
+  key: string;
+  
+  /** 儲存類型 */
+  storage?: 'localStorage' | 'sessionStorage';
+  
+  /** 是否自動序列化 */
+  serialize?: boolean;
+  
+  /** 序列化函數 */
+  serializer?: (value: any) => string;
+  
+  /** 反序列化函數 */
+  deserializer?: (value: string) => any;
 }
 
 // ============================================================================
@@ -164,220 +241,83 @@ export interface EffectError extends Error {
  * Effect 生命週期事件
  */
 export type EffectLifecycleEvent = 
-  | 'registered'    // 已註冊
-  | 'started'       // 已啟動
-  | 'executed'      // 已執行
-  | 'completed'     // 已完成
-  | 'cancelled'     // 已取消
-  | 'error'         // 錯誤
-  | 'destroyed';    // 已銷毀
+  | 'registered'
+  | 'started'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'restarted'
+  | 'destroyed';
 
 /**
  * Effect 生命週期監聽器
  */
 export interface EffectLifecycleListener {
-  /** 事件型別 */
-  event: EffectLifecycleEvent;
-  /** 回調函數 */
-  callback: (data: {
-    effectName: string;
-    timestamp: Date;
-    metadata?: any;
-  }) => void;
+  (event: EffectLifecycleEvent, effectName: string, data?: any): void;
+}
+
+/**
+ * Effect 狀態
+ */
+export interface EffectState {
+  /** 是否已註冊 */
+  isRegistered: boolean;
+  
+  /** 是否正在執行 */
+  isRunning: boolean;
+  
+  /** 是否已暫停 */
+  isPaused: boolean;
+  
+  /** 是否已銷毀 */
+  isDestroyed: boolean;
+  
+  /** 最後更新時間 */
+  lastUpdated: number;
 }
 
 // ============================================================================
-// 高階 Effect 型別
+// 高級 Effect 型別
 // ============================================================================
 
 /**
  * 條件 Effect 配置
  */
-export interface ConditionalEffectConfig<T = any> extends EffectConfig<T> {
-  /** 執行條件 */
+export interface ConditionalEffectConfig<T = any> {
+  /** 條件函數 */
   condition: (action: BaseAction, state: T) => boolean;
+  
+  /** 條件為真時執行的 Effect */
+  onTrue: Effect<T>;
+  
+  /** 條件為假時執行的 Effect（可選） */
+  onFalse?: Effect<T>;
 }
-
-/**
- * 批次 Effect 配置
- */
-export interface BatchEffectConfig<T = any> extends EffectConfig<T> {
-  /** 批次大小 */
-  batchSize: number;
-  /** 批次間隔 (毫秒) */
-  batchInterval: number;
-}
-
-/**
- * 排程 Effect 配置
- */
-export interface ScheduledEffectConfig<T = any> extends EffectConfig<T> {
-  /** 執行時程 (cron 表達式或毫秒間隔) */
-  schedule: string | number;
-  /** 是否立即執行 */
-  runImmediately?: boolean;
-}
-
-// ============================================================================
-// Effect 組合型別
-// ============================================================================
-
-/**
- * Effect 組合策略
- */
-export type EffectCompositionStrategy = 
-  | 'parallel'      // 平行執行
-  | 'sequential'    // 順序執行
-  | 'race'          // 競賽執行 (第一個完成)
-  | 'pipeline';     // 管線執行 (前一個的輸出作為下一個的輸入)
 
 /**
  * 組合 Effect 配置
  */
-export interface ComposedEffectConfig<T = any> {
-  /** 組合名稱 */
-  name: string;
-  /** 子 Effect 列表 */
-  effects: EffectConfig<T>[];
+export interface CompositeEffectConfig<T = any> {
+  /** 子 Effects */
+  effects: Effect<T>[];
+  
   /** 組合策略 */
-  strategy: EffectCompositionStrategy;
-  /** 組合選項 */
-  options?: {
-    /** 失敗時是否停止 */
-    stopOnError?: boolean;
-    /** 超時時間 */
-    timeout?: number;
-  };
-}
-
-// ============================================================================
-// Effect 中間件型別
-// ============================================================================
-
-/**
- * Effect 中間件函數
- */
-export interface EffectMiddleware<T = any> {
-  (
-    effectName: string,
-    effect: Effect<T>,
-    next: (effect: Effect<T>) => Observable<BaseAction>
-  ): Observable<BaseAction>;
+  strategy: 'parallel' | 'sequential' | 'race';
+  
+  /** 是否等待所有 Effect 完成 */
+  waitForAll?: boolean;
 }
 
 /**
- * Effect 攔截器
+ * 狀態相關 Effect 配置
  */
-export interface EffectInterceptor<T = any> {
-  /** 攔截器名稱 */
-  name: string;
-  /** 前置處理 */
-  beforeEffect?: (effectName: string, action$: Observable<BaseAction>, state$: Observable<T>) => void;
-  /** 後置處理 */
-  afterEffect?: (effectName: string, result$: Observable<BaseAction>) => Observable<BaseAction>;
-  /** 錯誤處理 */
-  onError?: (effectName: string, error: EffectError) => void;
+export interface StatefulEffectConfig<T = any> {
+  /** 初始狀態 */
+  initialState?: any;
+  
+  /** 狀態更新函數 */
+  updateState?: (currentState: any, action: BaseAction, storeState: T) => any;
+  
+  /** 狀態選擇器 */
+  stateSelector?: (storeState: T) => any;
 }
-
-// ============================================================================
-// Effect 工廠型別
-// ============================================================================
-
-/**
- * Effect 工廠函數
- */
-export interface EffectFactory<T = any, P = any> {
-  (params: P): Effect<T>;
-}
-
-/**
- * 可重用 Effect 範本
- */
-export interface EffectTemplate<T = any, P = any> {
-  /** 範本名稱 */
-  name: string;
-  /** 範本描述 */
-  description?: string;
-  /** 工廠函數 */
-  factory: EffectFactory<T, P>;
-  /** 預設配置 */
-  defaultConfig?: EffectOptions;
-}
-
-// ============================================================================
-// 測試相關型別
-// ============================================================================
-
-/**
- * Effect 測試輔助工具配置
- */
-export interface EffectTestConfig<T = any> {
-  /** 模擬的初始狀態 */
-  initialState?: T;
-  /** 模擬的 actions */
-  mockActions?: BaseAction[];
-  /** 測試超時時間 */
-  timeout?: number;
-  /** 是否啟用詳細日誌 */
-  verbose?: boolean;
-}
-
-/**
- * Effect 測試結果
- */
-export interface EffectTestResult {
-  /** 是否成功 */
-  success: boolean;
-  /** 執行時間 */
-  duration: number;
-  /** 輸出的 actions */
-  outputActions: BaseAction[];
-  /** 錯誤資訊 */
-  error?: EffectError;
-  /** 測試日誌 */
-  logs: string[];
-}
-
-// ============================================================================
-// 匯出所有型別
-// ============================================================================
-
-// export type {
-//   // 核心 Effect 型別
-//   Effect,
-//   EffectStrategy,
-//   EffectOptions,
-//   EffectConfig,
-  
-//   // Effect Manager 型別
-//   EffectManagerConfig,
-//   EffectStatus,
-//   EffectInstance,
-//   EffectStats,
-  
-//   // 錯誤型別
-//   EffectErrorType,
-//   EffectError,
-  
-//   // 生命週期型別
-//   EffectLifecycleEvent,
-//   EffectLifecycleListener,
-  
-//   // 高階型別
-//   ConditionalEffectConfig,
-//   BatchEffectConfig,
-//   ScheduledEffectConfig,
-//   ComposedEffectConfig,
-  
-//   // 中間件型別
-//   EffectMiddleware,
-//   EffectInterceptor,
-  
-//   // 工廠型別
-//   EffectFactory,
-//   EffectTemplate,
-  
-//   // 測試型別
-//   EffectTestConfig,
-//   EffectTestResult
-// };
